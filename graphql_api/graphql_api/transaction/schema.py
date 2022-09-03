@@ -9,6 +9,7 @@ from dateutil.relativedelta import relativedelta
 from django.db.models import Sum
 from django.db.models.functions import TruncMonth
 from django.db.models.functions import ExtractWeek
+from datetime import date
 
 class TransactionNode(DjangoObjectType):
     class Meta:
@@ -28,7 +29,7 @@ class CategoryType(DjangoObjectType):
 class TransactionQueries(graphene.ObjectType):
     transactions = graphene.List(TransactionNode)
     category = graphene.Field(lambda: graphene.List(CategoryType), presetRange=graphene.String(required=True))
-    date = graphene.Field(lambda: graphene.List(CategoryType), presetRange=graphene.String(required=True))
+    date = graphene.List(CategoryType, presetRange=graphene.String(required=True))
 
     def resolve_transactions(self, info):
         return Transaction.objects.all().order_by("-created_at")
@@ -37,16 +38,40 @@ class TransactionQueries(graphene.ObjectType):
     
     def resolve_category(self, info, presetRange=None, **kwargs):
         if presetRange=="Last 7 days":
-            return Transaction.objects.filter(created_at__gte=timezone.now().date() - timedelta(days=7)).values('category').order_by('-created_at').annotate(Sum('amount'))
+            return Transaction.objects\
+                .filter(created_at__gte=timezone.now().date() - timedelta(days=7))\
+                    .values('category', 'created_at')\
+                        .annotate(amount=Sum('amount'))
         elif presetRange=="Last 7 weeks":
-            return Transaction.objects.filter(created_at__gte=timezone.now().date() - relativedelta(weeks=+7)).values('category').order_by('-created_at').annotate(Sum('amount'))
+            return Transaction.objects\
+                .filter(created_at__gte=timezone.now().date() - relativedelta(weeks=+7))\
+                    .values('category')\
+                        .annotate(amount=Sum('amount'))
         elif presetRange=="Last 7 months":
-            return Transaction.objects.filter(created_at__gte=timezone.now().date() - relativedelta(months=+7)).values('category').order_by('-created_at').annotate(Sum('amount'))
+            return Transaction.objects\
+                .filter(created_at__gte=timezone.now().date() - relativedelta(months=+7))\
+                    .values('category')\
+                        .order_by('-created_at')\
+                            .annotate(amount=Sum('amount'))
 
-    def resolve_date(self, info, presetRange=None, **kwargs):
+    def resolve_date(self, info, presetRange=None, **kwargs): 
         if presetRange=="Last 7 days":
-            return Transaction.objects.filter(created_at__gte=timezone.now().date() - timedelta(days=7)).values('created_at').order_by('-created_at').annotate(Sum('amount'))
+            return Transaction.objects\
+                .filter(created_at__gte=date.today() - timedelta(days=7))\
+                    .values('created_at')\
+                        .annotate(amount=Sum('amount'))
         elif presetRange=="Last 7 weeks":
-            return Transaction.objects.filter(created_at__gte=timezone.now().date() - relativedelta(weeks=+7)).annotate(week=ExtractWeek('created_at')).values('week').annotate(Sum('amount'))
+            return Transaction.objects\
+                .filter(created_at__gte=timezone.now().date() - relativedelta(weeks=+7))\
+                    .annotate(week=ExtractWeek('created_at'))\
+                        .values('week')\
+                            .annotate(amount=Sum('amount'))
         elif presetRange=="Last 7 months":
-            return Transaction.objects.filter(created_at__gte=timezone.now().date() - relativedelta(weeks=+7)).annotate(month=TruncMonth('created_at')).annotate(Sum('amount'))
+            return Transaction.objects\
+                .filter(created_at__gte=timezone.now().date() - relativedelta(weeks=+7))\
+                    .annotate(month=TruncMonth('created_at'))\
+                        .values('month')\
+                            .annotate(amount=Sum('amount'))
+
+
+
